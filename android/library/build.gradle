@@ -76,13 +76,6 @@ afterEvaluate {
                 artifactId = artifactPrefix
                 version = versionInfo.gitHashFull
             }
-            debug(MavenPublication) {
-                from components.debug
-
-                groupId = group
-                artifactId = "${artifactPrefix}-debug"
-                version = versionInfo.gitHashFull
-            }
         }
     }
 }
