@@ -40,6 +40,7 @@ import com.polidea.rxandroidble.internal.RxBleLog;
 import com.polidea.rxandroidble.scan.ScanFilter;
 import com.polidea.rxandroidble.scan.ScanSettings;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -176,6 +177,7 @@ public class BleModule implements BleAdapter {
 
     @Override
     public void startDeviceScan(String[] filteredUUIDs,
+                                String[] filteredDeviceIds,
                                 int scanMode,
                                 int callbackType,
                                 OnEventCallback<ScanResult> onEventCallback,
@@ -190,7 +192,7 @@ public class BleModule implements BleAdapter {
             }
         }
 
-        safeStartDeviceScan(uuids, scanMode, callbackType, onEventCallback, onErrorCallback);
+        safeStartDeviceScan(uuids, filteredDeviceIds, scanMode, callbackType, onEventCallback, onErrorCallback);
     }
 
     @Override
@@ -1213,6 +1215,7 @@ public class BleModule implements BleAdapter {
     }
 
     private void safeStartDeviceScan(final UUID[] uuids,
+                                     final String[] deviceIds,
                                      final int scanMode,
                                      int callbackType,
                                      final OnEventCallback<ScanResult> onEventCallback,
@@ -1226,10 +1229,75 @@ public class BleModule implements BleAdapter {
                 .setCallbackType(callbackType)
                 .build();
 
-        int length = uuids == null ? 0 : uuids.length;
-        ScanFilter[] filters = new ScanFilter[length];
-        for (int i = 0; i < length; i++) {
-            filters[i] = new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(uuids[i].toString())).build();
+        final ScanFilter[] filters;
+        if ((uuids != null) || (deviceIds != null)) {
+            // we cannot simply loop over elements in two arrays.
+            // because it produces an empty filter if either of them is empty.
+            final ScanFilterModifier[] uuidFilters;
+            if (uuids != null) {
+                final int numUUIDs = uuids.length;
+                uuidFilters = new ScanFilterModifier[numUUIDs];
+                for (int i = 0; i < numUUIDs; ++i) {
+                    final UUID uuid = uuids[i];
+                    uuidFilters[i] = new ScanFilterModifier() {
+                        public ScanFilter.Builder apply(ScanFilter.Builder b) {
+                            return b.setServiceUuid(
+                                ParcelUuid.fromString(uuid.toString()));
+                        }
+                    };
+                }
+            } else {
+                // nop instead of leaving it empty
+                uuidFilters = new ScanFilterModifier[] {
+                    new ScanFilterModifier() {
+                        public ScanFilter.Builder apply(ScanFilter.Builder b) {
+                            return b;
+                        }
+                    }
+                };
+            }
+            final ScanFilterModifier[] deviceIdFilters;
+            if (deviceIds != null) {
+                final int numDeviceIds = deviceIds.length;
+                deviceIdFilters = new ScanFilterModifier[numDeviceIds];
+                for (int j = 0; j < numDeviceIds; ++j) {
+                    final String deviceId = deviceIds[j];
+                    deviceIdFilters[j] = new ScanFilterModifier() {
+                        public ScanFilter.Builder apply(ScanFilter.Builder b) {
+                            return b.setDeviceAddress(deviceId);
+                        }
+                    };
+                }
+            } else {
+                // nop instead of leaving it empty
+                deviceIdFilters = new ScanFilterModifier[] {
+                    new ScanFilterModifier() {
+                        public ScanFilter.Builder apply(ScanFilter.Builder b) {
+                            return b;
+                        }
+                    }
+                };
+            }
+            // makes a Cartesian product of uuidFilters x deviceIdFilters
+            // is there any handy function to do this in Java?
+            final int numUUIDs = uuidFilters.length;
+            final int numDeviceIds = deviceIdFilters.length;
+            final int numFilters = numUUIDs * numDeviceIds;
+            filters = new ScanFilter[numFilters];
+            int nextFilterIndex = 0;
+            for (int i = 0; i < numUUIDs; ++i) {
+                final ScanFilterModifier uuidFilter = uuidFilters[i];
+                for (int j = 0; j < numDeviceIds; ++j) {
+                    final ScanFilterModifier deviceIdFilter =
+                        deviceIdFilters[j];
+                    filters[nextFilterIndex] = deviceIdFilter.apply(
+                        uuidFilter.apply(new ScanFilter.Builder()))
+                            .build();
+                    ++nextFilterIndex;
+                }
+            }
+        } else {
+            filters = new ScanFilter[0];
         }
 
         scanSubscription = rxBleClient
@@ -1249,6 +1317,11 @@ public class BleModule implements BleAdapter {
                         onErrorCallback.onError(errorConverter.toError(throwable));
                     }
                 });
+    }
+
+    // A functional interface that modifies ScanFilter.Builder.
+    private static interface ScanFilterModifier {
+        public ScanFilter.Builder apply(ScanFilter.Builder builder);
     }
 
     @NonNull

@@ -26,6 +26,7 @@ public interface BleAdapter {
 
     void startDeviceScan(
             String[] filteredUUIDs,
+            String[] filteredDeviceIds,
             int scanMode,
             int callbackType,
             OnEventCallback<ScanResult> onEventCallback,
