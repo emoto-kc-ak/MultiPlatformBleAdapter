@@ -1230,11 +1230,13 @@ public class BleModule implements BleAdapter {
                 .build();
 
         final ScanFilter[] filters;
-        if ((uuids != null) || (deviceIds != null)) {
+        if (((uuids != null) && (uuids.length > 0)) ||
+				((deviceIds != null) && (deviceIds.length > 0)))
+		{
             // we cannot simply loop over elements in two arrays.
             // because it produces an empty filter if either of them is empty.
             final ScanFilterModifier[] uuidFilters;
-            if (uuids != null) {
+            if ((uuids != null) && (uuids.length > 0)) {
                 final int numUUIDs = uuids.length;
                 uuidFilters = new ScanFilterModifier[numUUIDs];
                 for (int i = 0; i < numUUIDs; ++i) {
@@ -1257,7 +1259,7 @@ public class BleModule implements BleAdapter {
                 };
             }
             final ScanFilterModifier[] deviceIdFilters;
-            if (deviceIds != null) {
+            if ((deviceIds != null) && (deviceIds.length > 0)) {
                 final int numDeviceIds = deviceIds.length;
                 deviceIdFilters = new ScanFilterModifier[numDeviceIds];
                 for (int j = 0; j < numDeviceIds; ++j) {
